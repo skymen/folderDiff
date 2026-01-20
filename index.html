@@ -80,6 +80,15 @@
         </div>
         
         <div class="setting-group">
+          <label class="setting-toggle">
+            <input type="checkbox" id="setting-hide-matches">
+            <span class="toggle-slider"></span>
+            <span class="setting-label">Hide exact matches</span>
+          </label>
+          <p class="setting-description">Hide files and folders that are identical in both directories</p>
+        </div>
+        
+        <div class="setting-group">
           <label class="setting-label-block">Ignore patterns</label>
           <p class="setting-description">One glob pattern per line (gitignore syntax). These files/folders will be excluded from comparison.</p>
           <textarea id="setting-ignore-patterns" class="setting-textarea" placeholder="node_modules&#10;*.log&#10;.DS_Store&#10;dist/"></textarea>

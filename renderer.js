@@ -7,6 +7,7 @@ let collapsedDirs = new Set();
 let settings = {
   ignoreLineBreaks: true,
   useGitignore: true,
+  hideMatches: false,
   ignorePatterns: []
 };
 
@@ -48,6 +49,7 @@ const settingsClose = document.getElementById('settings-close');
 const settingsSave = document.getElementById('settings-save');
 const settingIgnoreLinebreaks = document.getElementById('setting-ignore-linebreaks');
 const settingUseGitignore = document.getElementById('setting-use-gitignore');
+const settingHideMatches = document.getElementById('setting-hide-matches');
 const settingIgnorePatterns = document.getElementById('setting-ignore-patterns');
 
 // Settings modal
@@ -55,6 +57,7 @@ settingsBtn.addEventListener('click', () => {
   // Populate form with current settings
   settingIgnoreLinebreaks.checked = settings.ignoreLineBreaks;
   settingUseGitignore.checked = settings.useGitignore;
+  settingHideMatches.checked = settings.hideMatches;
   settingIgnorePatterns.value = settings.ignorePatterns.join('\n');
   
   settingsModal.classList.add('visible');
@@ -73,6 +76,7 @@ settingsModal.addEventListener('click', (e) => {
 settingsSave.addEventListener('click', () => {
   settings.ignoreLineBreaks = settingIgnoreLinebreaks.checked;
   settings.useGitignore = settingUseGitignore.checked;
+  settings.hideMatches = settingHideMatches.checked;
   settings.ignorePatterns = settingIgnorePatterns.value
     .split('\n')
     .map(line => line.trim())
@@ -164,7 +168,12 @@ function buildTree(data) {
 
 // Render tree
 function renderTree() {
-  const tree = buildTree(comparisonData);
+  // Filter out matches if hideMatches is enabled
+  const filteredData = settings.hideMatches 
+    ? comparisonData.filter(item => item.status !== 'match')
+    : comparisonData;
+  
+  const tree = buildTree(filteredData);
   
   // Calculate stats
   const stats = {
