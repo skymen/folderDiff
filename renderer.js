@@ -426,6 +426,10 @@ function computeLCS(a, b) {
   return lcs;
 }
 
+// Track current change index for navigation
+let currentChangeIndex = -1;
+let changeElements = [];
+
 // Render diff view
 function renderDiff(path, contentA, contentB) {
   if (contentA === null || contentB === null) {
@@ -437,27 +441,39 @@ function renderDiff(path, contentA, contentB) {
   const linesB = contentB.split('\n');
   const diff = computeDiff(linesA, linesB);
   
+  // Count changes
+  const changeCount = diff.filter(line => line.type !== 'same').length;
+  
   let html = `
     <div class="diff-view">
       <div class="diff-header">
-        <div class="diff-header-item">
-          <span class="diff-header-label a">A</span>
-          <span class="diff-header-path">${escapeHtml(folderA)}/${escapeHtml(path)}</span>
+        <div class="diff-header-paths">
+          <div class="diff-header-item">
+            <span class="diff-header-label a">A</span>
+            <span class="diff-header-path">${escapeHtml(folderA)}/${escapeHtml(path)}</span>
+          </div>
+          <div class="diff-header-item">
+            <span class="diff-header-label b">B</span>
+            <span class="diff-header-path">${escapeHtml(folderB)}/${escapeHtml(path)}</span>
+          </div>
         </div>
-        <div class="diff-header-item">
-          <span class="diff-header-label b">B</span>
-          <span class="diff-header-path">${escapeHtml(folderB)}/${escapeHtml(path)}</span>
+        <div class="diff-nav">
+          <span class="diff-nav-count"><span id="current-change">0</span> / ${changeCount}</span>
+          <button class="diff-nav-btn" id="prev-change" title="Previous change (↑)">↑</button>
+          <button class="diff-nav-btn" id="next-change" title="Next change (↓)">↓</button>
         </div>
       </div>
-      <div class="diff-content">
+      <div class="diff-content" id="diff-content-scroll">
   `;
   
+  let changeIdx = 0;
   for (const line of diff) {
     const lineNum = line.type === 'added' ? line.lineB : (line.lineA || '');
     const cssClass = line.type === 'same' ? '' : line.type === 'added' ? 'added' : 'removed';
+    const dataChangeIdx = line.type !== 'same' ? `data-change-idx="${changeIdx++}"` : '';
     
     html += `
-      <div class="diff-line ${cssClass}">
+      <div class="diff-line ${cssClass}" ${dataChangeIdx}>
         <span class="diff-line-number">${lineNum}</span>
         <span class="diff-line-content">${escapeHtml(line.content)}</span>
       </div>
@@ -466,4 +482,55 @@ function renderDiff(path, contentA, contentB) {
   
   html += '</div></div>';
   diffContainer.innerHTML = html;
+  
+  // Setup navigation
+  currentChangeIndex = -1;
+  changeElements = Array.from(diffContainer.querySelectorAll('.diff-line[data-change-idx]'));
+  
+  const prevBtn = document.getElementById('prev-change');
+  const nextBtn = document.getElementById('next-change');
+  
+  prevBtn.addEventListener('click', () => navigateChange(-1));
+  nextBtn.addEventListener('click', () => navigateChange(1));
+  
+  // Keyboard navigation
+  diffContainer.addEventListener('keydown', handleDiffKeydown);
+  diffContainer.setAttribute('tabindex', '0');
+}
+
+function handleDiffKeydown(e) {
+  if (e.key === 'ArrowUp' || e.key === 'k') {
+    e.preventDefault();
+    navigateChange(-1);
+  } else if (e.key === 'ArrowDown' || e.key === 'j') {
+    e.preventDefault();
+    navigateChange(1);
+  }
+}
+
+function navigateChange(direction) {
+  if (changeElements.length === 0) return;
+  
+  // Remove highlight from current
+  if (currentChangeIndex >= 0 && currentChangeIndex < changeElements.length) {
+    changeElements[currentChangeIndex].classList.remove('highlighted');
+  }
+  
+  // Calculate new index
+  if (direction > 0) {
+    currentChangeIndex = currentChangeIndex < changeElements.length - 1 ? currentChangeIndex + 1 : 0;
+  } else {
+    currentChangeIndex = currentChangeIndex > 0 ? currentChangeIndex - 1 : changeElements.length - 1;
+  }
+  
+  // Highlight and scroll to new change
+  const el = changeElements[currentChangeIndex];
+  el.classList.add('highlighted');
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  
+  // Update counter
+  const counter = document.getElementById('current-change');
+  if (counter) {
+    counter.textContent = currentChangeIndex + 1;
+  }
 }
