@@ -3,6 +3,37 @@ let folderB = null;
 let comparisonData = [];
 let collapsedDirs = new Set();
 
+// Settings
+let settings = {
+  ignoreLineBreaks: true,
+  useGitignore: true,
+  ignorePatterns: []
+};
+
+// Load settings from localStorage
+function loadSettings() {
+  try {
+    const saved = localStorage.getItem('folderDiffSettings');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      settings = { ...settings, ...parsed };
+    }
+  } catch (err) {
+    console.error('Failed to load settings:', err);
+  }
+}
+
+// Save settings to localStorage
+function saveSettings() {
+  try {
+    localStorage.setItem('folderDiffSettings', JSON.stringify(settings));
+  } catch (err) {
+    console.error('Failed to save settings:', err);
+  }
+}
+
+loadSettings();
+
 const selectABtn = document.getElementById('select-a');
 const selectBBtn = document.getElementById('select-b');
 const pathAEl = document.getElementById('path-a');
@@ -11,6 +42,45 @@ const compareBtn = document.getElementById('compare-btn');
 const treeContainer = document.getElementById('tree-container');
 const diffContainer = document.getElementById('diff-container');
 const diffTitle = document.getElementById('diff-title');
+const settingsBtn = document.getElementById('settings-btn');
+const settingsModal = document.getElementById('settings-modal');
+const settingsClose = document.getElementById('settings-close');
+const settingsSave = document.getElementById('settings-save');
+const settingIgnoreLinebreaks = document.getElementById('setting-ignore-linebreaks');
+const settingUseGitignore = document.getElementById('setting-use-gitignore');
+const settingIgnorePatterns = document.getElementById('setting-ignore-patterns');
+
+// Settings modal
+settingsBtn.addEventListener('click', () => {
+  // Populate form with current settings
+  settingIgnoreLinebreaks.checked = settings.ignoreLineBreaks;
+  settingUseGitignore.checked = settings.useGitignore;
+  settingIgnorePatterns.value = settings.ignorePatterns.join('\n');
+  
+  settingsModal.classList.add('visible');
+});
+
+settingsClose.addEventListener('click', () => {
+  settingsModal.classList.remove('visible');
+});
+
+settingsModal.addEventListener('click', (e) => {
+  if (e.target === settingsModal) {
+    settingsModal.classList.remove('visible');
+  }
+});
+
+settingsSave.addEventListener('click', () => {
+  settings.ignoreLineBreaks = settingIgnoreLinebreaks.checked;
+  settings.useGitignore = settingUseGitignore.checked;
+  settings.ignorePatterns = settingIgnorePatterns.value
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith('#'));
+  
+  saveSettings();
+  settingsModal.classList.remove('visible');
+});
 
 // Folder selection
 selectABtn.addEventListener('click', async () => {
@@ -46,7 +116,11 @@ compareBtn.addEventListener('click', async () => {
   collapsedDirs.clear();
   
   try {
-    comparisonData = await window.electronAPI.compareFolders(folderA, folderB);
+    comparisonData = await window.electronAPI.compareFolders(folderA, folderB, {
+      ignoreLineBreaks: settings.ignoreLineBreaks,
+      ignorePatterns: settings.ignorePatterns,
+      useGitignore: settings.useGitignore
+    });
     renderTree();
   } catch (err) {
     treeContainer.innerHTML = `<div class="empty-state">Error: ${err.message}</div>`;

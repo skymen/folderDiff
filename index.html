@@ -22,6 +22,7 @@
           <span class="folder-path" id="path-b">Select folder...</span>
         </button>
         <button id="compare-btn" class="compare-btn" disabled>Compare</button>
+        <button id="settings-btn" class="settings-btn" title="Settings">⚙</button>
       </div>
     </header>
     
@@ -50,6 +51,44 @@
         </div>
       </section>
     </main>
+  </div>
+  
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settings-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Settings</h2>
+        <button class="modal-close" id="settings-close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-group">
+          <label class="setting-toggle">
+            <input type="checkbox" id="setting-ignore-linebreaks" checked>
+            <span class="toggle-slider"></span>
+            <span class="setting-label">Ignore line breaks</span>
+          </label>
+          <p class="setting-description">Treat files with different line endings (CRLF vs LF) as identical</p>
+        </div>
+        
+        <div class="setting-group">
+          <label class="setting-toggle">
+            <input type="checkbox" id="setting-use-gitignore" checked>
+            <span class="toggle-slider"></span>
+            <span class="setting-label">Use .gitignore files</span>
+          </label>
+          <p class="setting-description">Automatically ignore files matching patterns in .gitignore files from both folders</p>
+        </div>
+        
+        <div class="setting-group">
+          <label class="setting-label-block">Ignore patterns</label>
+          <p class="setting-description">One glob pattern per line (gitignore syntax). These files/folders will be excluded from comparison.</p>
+          <textarea id="setting-ignore-patterns" class="setting-textarea" placeholder="node_modules&#10;*.log&#10;.DS_Store&#10;dist/"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-primary" id="settings-save">Save</button>
+      </div>
+    </div>
   </div>
   
   <script src="renderer.js"></script>
