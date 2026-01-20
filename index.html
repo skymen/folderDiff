@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com">
+  <title>Folder Diff</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="folder-selector">
+        <button id="select-a" class="folder-btn">
+          <span class="folder-label">A</span>
+          <span class="folder-path" id="path-a">Select folder...</span>
+        </button>
+        <span class="vs">⇄</span>
+        <button id="select-b" class="folder-btn">
+          <span class="folder-label">B</span>
+          <span class="folder-path" id="path-b">Select folder...</span>
+        </button>
+        <button id="compare-btn" class="compare-btn" disabled>Compare</button>
+      </div>
+    </header>
+    
+    <main class="main">
+      <aside class="tree-panel">
+        <div class="panel-header">
+          <span>Files</span>
+          <div class="legend">
+            <span class="legend-item only-a">● A only</span>
+            <span class="legend-item only-b">● B only</span>
+            <span class="legend-item different">● Different</span>
+            <span class="legend-item match">● Match</span>
+          </div>
+        </div>
+        <div class="tree-container" id="tree-container">
+          <div class="empty-state">Select two folders to compare</div>
+        </div>
+      </aside>
+      
+      <section class="diff-panel">
+        <div class="panel-header">
+          <span id="diff-title">Diff View</span>
+        </div>
+        <div class="diff-container" id="diff-container">
+          <div class="empty-state">Click a file with differences to view</div>
+        </div>
+      </section>
+    </main>
+  </div>
+  
+  <script src="renderer.js"></script>
+</body>
+</html>
