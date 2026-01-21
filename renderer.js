@@ -317,7 +317,7 @@ async function handleFileClick(el) {
         window.electronAPI.getFileContent(`${folderA}/${path}`),
         window.electronAPI.getFileContent(`${folderB}/${path}`)
       ]);
-      renderDiff(path, contentA, contentB);
+      await renderDiff(path, contentA, contentB);
     }
   } catch (err) {
     diffContainer.innerHTML = `<div class="empty-state">Error loading file: ${err.message}</div>`;
@@ -355,76 +355,6 @@ function renderSingleFile(path, content, status, label) {
   diffContainer.innerHTML = html;
 }
 
-// Simple diff algorithm
-function computeDiff(linesA, linesB) {
-  const result = [];
-  let i = 0, j = 0;
-  
-  // Simple LCS-based diff
-  const lcs = computeLCS(linesA, linesB);
-  let lcsIdx = 0;
-  
-  while (i < linesA.length || j < linesB.length) {
-    if (lcsIdx < lcs.length && i < linesA.length && linesA[i] === lcs[lcsIdx]) {
-      // Check if B also matches
-      if (j < linesB.length && linesB[j] === lcs[lcsIdx]) {
-        result.push({ type: 'same', lineA: i + 1, lineB: j + 1, content: linesA[i] });
-        i++;
-        j++;
-        lcsIdx++;
-      } else {
-        // B has extra line
-        result.push({ type: 'added', lineB: j + 1, content: linesB[j] });
-        j++;
-      }
-    } else if (lcsIdx < lcs.length && j < linesB.length && linesB[j] === lcs[lcsIdx]) {
-      // A has extra line
-      result.push({ type: 'removed', lineA: i + 1, content: linesA[i] });
-      i++;
-    } else if (i < linesA.length && (lcsIdx >= lcs.length || linesA[i] !== lcs[lcsIdx])) {
-      result.push({ type: 'removed', lineA: i + 1, content: linesA[i] });
-      i++;
-    } else if (j < linesB.length) {
-      result.push({ type: 'added', lineB: j + 1, content: linesB[j] });
-      j++;
-    }
-  }
-  
-  return result;
-}
-
-function computeLCS(a, b) {
-  const m = a.length;
-  const n = b.length;
-  const dp = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
-  
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (a[i - 1] === b[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1] + 1;
-      } else {
-        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
-      }
-    }
-  }
-  
-  // Backtrack to find LCS
-  const lcs = [];
-  let i = m, j = n;
-  while (i > 0 && j > 0) {
-    if (a[i - 1] === b[j - 1]) {
-      lcs.unshift(a[i - 1]);
-      i--;
-      j--;
-    } else if (dp[i - 1][j] > dp[i][j - 1]) {
-      i--;
-    } else {
-      j--;
-    }
-  }
-  
-  return lcs;
-}
 
 // Track current change group index for navigation
 let currentGroupIndex = -1;
@@ -460,15 +390,19 @@ function groupChanges(diff) {
 }
 
 // Render diff view
-function renderDiff(path, contentA, contentB) {
+async function renderDiff(path, contentA, contentB) {
   if (contentA === null || contentB === null) {
     diffContainer.innerHTML = '<div class="empty-state">Unable to read file (may be binary)</div>';
     return;
   }
   
-  const linesA = contentA.split('\n');
-  const linesB = contentB.split('\n');
-  const diff = computeDiff(linesA, linesB);
+  // Use jsdiff via main process
+  const diff = await window.electronAPI.computeDiff(contentA, contentB, settings.ignoreLineBreaks);
+  
+  if (!diff) {
+    diffContainer.innerHTML = '<div class="empty-state">Unable to compute diff</div>';
+    return;
+  }
   
   // Group consecutive changes
   const groups = groupChanges(diff);

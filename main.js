@@ -331,3 +331,48 @@ ipcMain.handle('get-file-content', async (event, filePath) => {
     return null;
   }
 });
+
+// Compute diff between two files using jsdiff
+const Diff = require('diff');
+
+ipcMain.handle('compute-diff', async (event, contentA, contentB, ignoreLineBreaks = true) => {
+  if (contentA === null || contentB === null) {
+    return null;
+  }
+  
+  let textA = contentA;
+  let textB = contentB;
+  
+  // Normalize line endings to LF if ignoreLineBreaks is enabled
+  if (ignoreLineBreaks) {
+    textA = contentA.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    textB = contentB.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  }
+  
+  const changes = Diff.diffLines(textA, textB);
+  
+  // Convert jsdiff output to our format with line numbers
+  const result = [];
+  let lineA = 1;
+  let lineB = 1;
+  
+  for (const change of changes) {
+    const lines = change.value.split('\n');
+    // Remove last empty element if the value ends with newline
+    if (lines[lines.length - 1] === '') {
+      lines.pop();
+    }
+    
+    for (const line of lines) {
+      if (change.added) {
+        result.push({ type: 'added', lineB: lineB++, content: line });
+      } else if (change.removed) {
+        result.push({ type: 'removed', lineA: lineA++, content: line });
+      } else {
+        result.push({ type: 'same', lineA: lineA++, lineB: lineB++, content: line });
+      }
+    }
+  }
+  
+  return result;
+});
