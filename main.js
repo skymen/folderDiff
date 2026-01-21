@@ -3,6 +3,11 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
+// Enable auto-reload in development
+try {
+  require('electron-reloader')(module);
+} catch {}
+
 let mainWindow;
 
 function createWindow() {

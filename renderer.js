@@ -426,9 +426,38 @@ function computeLCS(a, b) {
   return lcs;
 }
 
-// Track current change index for navigation
-let currentChangeIndex = -1;
-let changeElements = [];
+// Track current change group index for navigation
+let currentGroupIndex = -1;
+let changeGroups = [];
+
+// Group consecutive changed lines into hunks
+function groupChanges(diff) {
+  const groups = [];
+  let currentGroup = null;
+  let lineIndex = 0;
+  
+  for (const line of diff) {
+    if (line.type !== 'same') {
+      if (!currentGroup) {
+        currentGroup = { startIndex: lineIndex, lines: [] };
+      }
+      currentGroup.lines.push({ ...line, index: lineIndex });
+    } else {
+      if (currentGroup) {
+        groups.push(currentGroup);
+        currentGroup = null;
+      }
+    }
+    lineIndex++;
+  }
+  
+  // Don't forget the last group
+  if (currentGroup) {
+    groups.push(currentGroup);
+  }
+  
+  return groups;
+}
 
 // Render diff view
 function renderDiff(path, contentA, contentB) {
@@ -441,8 +470,39 @@ function renderDiff(path, contentA, contentB) {
   const linesB = contentB.split('\n');
   const diff = computeDiff(linesA, linesB);
   
-  // Count changes
-  const changeCount = diff.filter(line => line.type !== 'same').length;
+  // Group consecutive changes
+  const groups = groupChanges(diff);
+  
+  // Build line numbers and content separately
+  let lineNumbersHtml = '';
+  let linesHtml = '';
+  let groupIdx = 0;
+  let lineIdx = 0;
+  
+  for (const line of diff) {
+    const lineNum = line.type === 'added' ? line.lineB : (line.lineA || '');
+    const cssClass = line.type === 'same' ? '' : line.type === 'added' ? 'added' : 'removed';
+    
+    // Check if this line starts a new group
+    const isGroupStart = groups[groupIdx] && groups[groupIdx].startIndex === lineIdx;
+    const groupAttr = isGroupStart ? `data-group-idx="${groupIdx}"` : '';
+    const lineGroupAttr = isGroupStart ? `data-line-group-idx="${groupIdx}"` : '';
+    
+    // Check if this line is part of current group
+    const inGroup = groups[groupIdx] && lineIdx >= groups[groupIdx].startIndex && 
+                    lineIdx < groups[groupIdx].startIndex + groups[groupIdx].lines.length;
+    const groupClass = inGroup ? 'in-group' : '';
+    
+    // Move to next group if we've passed the current one
+    if (groups[groupIdx] && lineIdx >= groups[groupIdx].startIndex + groups[groupIdx].lines.length) {
+      groupIdx++;
+    }
+    
+    lineNumbersHtml += `<div class="diff-line-number ${cssClass} ${groupClass}" ${lineGroupAttr}>${lineNum}</div>`;
+    linesHtml += `<div class="diff-line ${cssClass} ${groupClass}" ${groupAttr}>${escapeHtml(line.content)}</div>`;
+    
+    lineIdx++;
+  }
   
   let html = `
     <div class="diff-view">
@@ -458,40 +518,41 @@ function renderDiff(path, contentA, contentB) {
           </div>
         </div>
         <div class="diff-nav">
-          <span class="diff-nav-count"><span id="current-change">0</span> / ${changeCount}</span>
+          <span class="diff-nav-count"><span id="current-change">0</span> / ${groups.length}</span>
           <button class="diff-nav-btn" id="prev-change" title="Previous change (↑)">↑</button>
           <button class="diff-nav-btn" id="next-change" title="Next change (↓)">↓</button>
         </div>
       </div>
-      <div class="diff-content" id="diff-content-scroll">
+      <div class="diff-content-wrapper">
+        <div class="diff-content">
+          <div class="diff-lines-wrapper">
+            <div class="diff-line-numbers" id="diff-line-numbers">${lineNumbersHtml}</div>
+            <div class="diff-lines-content" id="diff-lines-content"><div class="diff-lines-inner">${linesHtml}</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
   `;
   
-  let changeIdx = 0;
-  for (const line of diff) {
-    const lineNum = line.type === 'added' ? line.lineB : (line.lineA || '');
-    const cssClass = line.type === 'same' ? '' : line.type === 'added' ? 'added' : 'removed';
-    const dataChangeIdx = line.type !== 'same' ? `data-change-idx="${changeIdx++}"` : '';
-    
-    html += `
-      <div class="diff-line ${cssClass}" ${dataChangeIdx}>
-        <span class="diff-line-number">${lineNum}</span>
-        <span class="diff-line-content">${escapeHtml(line.content)}</span>
-      </div>
-    `;
-  }
-  
-  html += '</div></div>';
   diffContainer.innerHTML = html;
   
+  // Sync vertical scroll between line numbers and content
+  const lineNumbers = document.getElementById('diff-line-numbers');
+  const linesContent = document.getElementById('diff-lines-content');
+  
+  linesContent.addEventListener('scroll', () => {
+    lineNumbers.scrollTop = linesContent.scrollTop;
+  });
+  
   // Setup navigation
-  currentChangeIndex = -1;
-  changeElements = Array.from(diffContainer.querySelectorAll('.diff-line[data-change-idx]'));
+  currentGroupIndex = -1;
+  changeGroups = Array.from(diffContainer.querySelectorAll('.diff-line[data-group-idx]'));
   
   const prevBtn = document.getElementById('prev-change');
   const nextBtn = document.getElementById('next-change');
   
-  prevBtn.addEventListener('click', () => navigateChange(-1));
-  nextBtn.addEventListener('click', () => navigateChange(1));
+  prevBtn.addEventListener('click', () => navigateGroup(-1));
+  nextBtn.addEventListener('click', () => navigateGroup(1));
   
   // Keyboard navigation
   diffContainer.addEventListener('keydown', handleDiffKeydown);
@@ -501,36 +562,67 @@ function renderDiff(path, contentA, contentB) {
 function handleDiffKeydown(e) {
   if (e.key === 'ArrowUp' || e.key === 'k') {
     e.preventDefault();
-    navigateChange(-1);
+    navigateGroup(-1);
   } else if (e.key === 'ArrowDown' || e.key === 'j') {
     e.preventDefault();
-    navigateChange(1);
+    navigateGroup(1);
   }
 }
 
-function navigateChange(direction) {
-  if (changeElements.length === 0) return;
+function navigateGroup(direction) {
+  if (changeGroups.length === 0) return;
   
-  // Remove highlight from current
-  if (currentChangeIndex >= 0 && currentChangeIndex < changeElements.length) {
-    changeElements[currentChangeIndex].classList.remove('highlighted');
-  }
+  // Remove highlight from current group (both line numbers and content)
+  diffContainer.querySelectorAll('.group-highlighted').forEach(el => {
+    el.classList.remove('group-highlighted');
+  });
   
   // Calculate new index
   if (direction > 0) {
-    currentChangeIndex = currentChangeIndex < changeElements.length - 1 ? currentChangeIndex + 1 : 0;
+    currentGroupIndex = currentGroupIndex < changeGroups.length - 1 ? currentGroupIndex + 1 : 0;
   } else {
-    currentChangeIndex = currentChangeIndex > 0 ? currentChangeIndex - 1 : changeElements.length - 1;
+    currentGroupIndex = currentGroupIndex > 0 ? currentGroupIndex - 1 : changeGroups.length - 1;
   }
   
-  // Highlight and scroll to new change
-  const el = changeElements[currentChangeIndex];
-  el.classList.add('highlighted');
-  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // Find all lines in this group and highlight them
+  const groupStart = changeGroups[currentGroupIndex];
+  let el = groupStart;
+  
+  while (el && (el === groupStart || el.classList.contains('in-group'))) {
+    if (el.classList.contains('added') || el.classList.contains('removed')) {
+      el.classList.add('group-highlighted');
+    }
+    el = el.nextElementSibling;
+  }
+  
+  // Also highlight corresponding line numbers
+  const lineNumberStart = diffContainer.querySelector(`.diff-line-number[data-line-group-idx="${currentGroupIndex}"]`);
+  if (lineNumberStart) {
+    let numEl = lineNumberStart;
+    while (numEl && (numEl === lineNumberStart || numEl.classList.contains('in-group'))) {
+      if (numEl.classList.contains('added') || numEl.classList.contains('removed')) {
+        numEl.classList.add('group-highlighted');
+      }
+      numEl = numEl.nextElementSibling;
+    }
+  }
+  
+  // Scroll content to group start
+  const linesContent = document.getElementById('diff-lines-content');
+  const lineNumbers = document.getElementById('diff-line-numbers');
+  
+  if (linesContent && groupStart) {
+    const containerRect = linesContent.getBoundingClientRect();
+    const elementRect = groupStart.getBoundingClientRect();
+    const scrollTop = linesContent.scrollTop + elementRect.top - containerRect.top - containerRect.height / 2 + elementRect.height / 2;
+    
+    linesContent.scrollTo({ top: scrollTop, behavior: 'smooth' });
+    lineNumbers.scrollTo({ top: scrollTop, behavior: 'smooth' });
+  }
   
   // Update counter
   const counter = document.getElementById('current-change');
   if (counter) {
-    counter.textContent = currentChangeIndex + 1;
+    counter.textContent = currentGroupIndex + 1;
   }
 }
